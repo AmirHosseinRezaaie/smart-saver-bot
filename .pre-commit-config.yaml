@@ -1,0 +1,25 @@
+# Pre-commit runs Ruff and Black on every commit. MyPy is deliberately
+# NOT wired into pre-commit (see docs/architecture-decisions.md,
+# ADR-003): full-project type checking is slow enough to hurt the
+# commit-time UX, and it still runs on every CI push, so nothing goes
+# unchecked before merge — it just isn't a commit-time gate.
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9
+    hooks:
+      - id: ruff
+        args: [--fix]
+
+  - repo: https://github.com/psf/black
+    rev: 24.10.0
+    hooks:
+      - id: black
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-toml
+      - id: check-added-large-files
+      - id: check-merge-conflict
