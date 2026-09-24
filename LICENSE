@@ -1,0 +1,9 @@
+TODO: Select project license.
+
+The Smart Saver Bot project document does not specify a software license, and no
+license has been chosen yet. Until this file is replaced with the text of an actual
+license, no rights beyond viewing this source are granted to third parties.
+
+Maintainers: replace this file with the full text of the chosen license (e.g. MIT,
+Apache-2.0, or a proprietary notice) before any public release, and update the
+`license` field in `pyproject.toml` and the License section of `README.md` to match.
