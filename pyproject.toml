@@ -1,0 +1,86 @@
+[tool.poetry]
+name = "smart-saver-bot"
+version = "0.1.0-dev"
+description = "Smart Saver Bot — an economic shopping optimization bot for the Bale messenger, built on OKALA store data."
+authors = ["Smart Saver Bot Team"]
+license = "TODO"
+readme = "README.md"
+package-mode = true
+packages = [{ include = "app" }]
+
+[tool.poetry.dependencies]
+# Phase 1 intentionally has zero runtime dependencies: there is no
+# HTTP framework, ORM, or bot library wired up yet. FastAPI,
+# SQLAlchemy, and python-bale-bot are introduced in later phases when
+# there is actual business logic to run them against (see
+# docs/architecture-decisions.md, ADR-005).
+python = "^3.12"
+
+[tool.poetry.group.dev.dependencies]
+ruff = "^0.6.9"
+black = "^24.10.0"
+mypy = "^1.13.0"
+
+[tool.poetry.group.test.dependencies]
+pytest = "^8.3.3"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+# ---------------------------------------------------------------------------
+# Ruff: linting + import sorting
+# ---------------------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["app", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "I",   # isort (import sorting)
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "SIM", # flake8-simplify
+]
+ignore = []
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+[tool.ruff.format]
+# Formatting is Black's responsibility; Ruff's formatter stays off to
+# avoid two tools fighting over the same job.
+docstring-code-format = false
+
+# ---------------------------------------------------------------------------
+# Black: code formatting
+# ---------------------------------------------------------------------------
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+include = '\.pyi?$'
+
+# ---------------------------------------------------------------------------
+# MyPy: static type checking
+# ---------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unused_configs = true
+show_error_codes = true
+exclude = ["tests/"]
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+
+# ---------------------------------------------------------------------------
+# Pytest
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+minversion = "8.0"
+addopts = "-ra --strict-markers"
+testpaths = ["tests"]
