@@ -77,7 +77,7 @@ smart-saver-bot/
 ## Installation
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/AmirHosseinRezaaie/smart-saver-bot.git
 cd smart-saver-bot
 poetry install
 cp .env.example .env
