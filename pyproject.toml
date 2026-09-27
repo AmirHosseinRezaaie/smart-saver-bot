@@ -9,20 +9,35 @@ package-mode = true
 packages = [{ include = "app" }]
 
 [tool.poetry.dependencies]
-# Phase 1 intentionally has zero runtime dependencies: there is no
-# HTTP framework, ORM, or bot library wired up yet. FastAPI,
-# SQLAlchemy, and python-bale-bot are introduced in later phases when
-# there is actual business logic to run them against (see
-# docs/architecture-decisions.md, ADR-005).
+# Phase 2 ("Backend Core") introduces the FastAPI application, async
+# PostgreSQL access via SQLAlchemy, and async Redis access — see
+# docs/architecture-decisions.md, ADR-006 onward. python-bale-bot is
+# still deferred to the Phase 5 bot layer; it has no role in the
+# infrastructure this phase builds.
 python = "^3.12"
+fastapi = "^0.141.1"
+uvicorn = {extras = ["standard"], version = "^0.53.0"}
+pydantic = "^2.13.5"
+pydantic-settings = "^2.15.0"
+sqlalchemy = {extras = ["asyncio"], version = "^2.0.54"}
+asyncpg = "^0.31.0"
+redis = "^8.1.0"
+alembic = "^1.20.0"
+# Phase 3 ("OKALA Data Provider"): async HTTP client for the provider
+# adapter (app/scrapers). Chosen for consistency with the project's
+# async architecture — see docs/okala-research.md.
+httpx = "^0.28.1"
 
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.6.9"
 black = "^24.10.0"
 mypy = "^1.13.0"
+pre-commit = "^4.6.2"
 
 [tool.poetry.group.test.dependencies]
 pytest = "^8.3.3"
+httpx = "^0.28.1"
+pytest-asyncio = "^1.4.0"
 
 [build-system]
 requires = ["poetry-core"]
@@ -73,10 +88,6 @@ warn_unused_configs = true
 show_error_codes = true
 exclude = ["tests/"]
 
-[[tool.mypy.overrides]]
-module = "tests.*"
-disallow_untyped_defs = false
-
 # ---------------------------------------------------------------------------
 # Pytest
 # ---------------------------------------------------------------------------
@@ -84,3 +95,7 @@ disallow_untyped_defs = false
 minversion = "8.0"
 addopts = "-ra --strict-markers"
 testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = [
+    "integration: needs a real PostgreSQL and/or Redis instance (see tests/integration).",
+]
