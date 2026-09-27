@@ -1,171 +1,648 @@
 # Smart Saver Bot
 
-An intelligent, economy-focused shopping bot for the [Bale](https://www.bale.ai/) messenger.
-Smart Saver Bot uses product and price data from the OKALA store to — in future phases —
-help users assemble an economically optimized shopping basket within a given budget.
+> An intelligent, economy-focused shopping assistant for the Bale messenger, designed to help users make better purchasing decisions using product, price, discount and availability data.
 
-## Current Status
+**Smart Saver Bot** is a modular Python backend project that aims to analyze shopping data from OKALA and help users build economically optimized shopping baskets within a defined budget.
 
-**Phase 1 — Repository & Architecture Bootstrap**
+The project is being developed incrementally through a structured multi-phase roadmap.
 
-This phase establishes the project's standard structure, code-quality tooling, and the
-skeleton of a layered architecture. No business logic (search, basket optimization,
-OKALA integration, the Bale bot itself, etc.) is implemented yet — see
-[docs/architecture-decisions.md](docs/architecture-decisions.md) for why, and the
-[Roadmap](#roadmap) below for what comes next.
+---
 
-## Architecture
+## 🚧 Current Status
 
-Smart Saver Bot is built as a **Modular Monolith** with a **layered / service-oriented**
-architecture. A single deployable application is organized into clearly bounded modules
-(one package per concern, with an explicit interface), so that a module can be split out
-into its own service later without a rewrite — while avoiding the operational overhead of
-microservices at the current scale.
+**Phase 2 — Backend Core: Completed**
+
+The current version provides a stable backend foundation built with:
+
+- FastAPI
+- PostgreSQL
+- SQLAlchemy Async
+- Redis
+- Alembic
+- Pydantic Settings
+- Pytest
+- Docker Compose
+- GitHub Actions
+
+The backend currently includes:
+
+- A runnable FastAPI application
+- Centralized configuration management
+- PostgreSQL async connectivity
+- Redis async connectivity
+- Centralized exception handling
+- Database migration infrastructure
+- `/health` endpoint
+- Unit and integration tests
+- CI test execution
+
+Business features such as OKALA integration, product search, basket optimization and Bale bot interaction are intentionally implemented in later phases.
+
+---
+
+## 🎯 Project Goal
+
+The long-term goal is to build a shopping assistant that can:
+
+1. Find economical products
+2. Compare prices across available stores
+3. Analyze discounts and effective prices
+4. Build optimized shopping baskets within a budget
+5. Handle mandatory products
+6. Provide intelligent shopping recommendations
+7. Eventually support additional stores and more advanced recommendation capabilities
+
+The project uses an **Economic Score** rather than relying only on discount percentage when evaluating economic value.
+
+---
+
+## 🏗️ Architecture
+
+Smart Saver Bot follows a **Modular Monolith + Layered / Service-Oriented Architecture**.
 
 ```text
-User (Bale messenger)
-      ↓
-  Bale Bot                (webhook / long polling)
-      ↓
-  Bot Handler             (command dispatch, conversation state)
-      ↓
-  Application / Service Layer
-      (User Mgmt, Search, Product, Basket Optimization,
-       Recommendation, Price Analysis, Notification)
-      ↓
-  Repositories  ⇄  OKALA Data Provider  ⇄  Scheduler / Background Jobs
-      ↓
-  PostgreSQL (source of truth) + Redis (cache / queue)
+                         ┌──────────────────────┐
+                         │     Bale Messenger   │
+                         │       Phase 5+       │
+                         └──────────┬───────────┘
+                                    │
+                                    ▼
+                         ┌──────────────────────┐
+                         │      Bale Bot        │
+                         │       Phase 5+       │
+                         └──────────┬───────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────┐
+│              Application / Service Layer                    │
+│                                                             │
+│ User │ Search │ Product │ Basket │ Recommendation │ Price  │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+                           ▼
+                 ┌─────────────────────┐
+                 │    Repositories     │
+                 └──────────┬──────────┘
+                            │
+              ┌─────────────┴─────────────┐
+              ▼                           ▼
+     ┌─────────────────┐         ┌──────────────────┐
+     │ OKALA Provider  │         │ Background Jobs  │
+     │    Phase 3+     │         │     Phase 8+     │
+     └─────────────────┘         └──────────────────┘
+
+                            │
+                            ▼
+                 ┌─────────────────────┐
+                 │    Database Layer   │
+                 │                     │
+                 │ PostgreSQL + Redis  │
+                 └─────────────────────┘
 ```
 
-Business logic in the Service layer never talks to Bale or OKALA directly; both are
-reached only through adapters (the Bot layer and the Data Provider layer, respectively),
-so either can be swapped or extended without touching core logic.
+The architecture intentionally separates business logic from external systems such as Bale and OKALA.
 
-## Project Structure
+This makes it possible to replace or extend external integrations without rewriting the core application logic.
+
+---
+
+## 📦 Current Backend Core
+
+Phase 2 establishes the following foundation:
+
+### FastAPI
+
+The main application is exposed through:
+
+```text
+app/main.py
+```
+
+The API layer is organized under:
+
+```text
+app/api/
+```
+
+### Configuration
+
+Application configuration is managed through:
+
+```text
+app/core/config.py
+```
+
+using Pydantic Settings and environment variables.
+
+No production secrets are hardcoded into the source code.
+
+### PostgreSQL
+
+Database connectivity is implemented using:
+
+```text
+SQLAlchemy Async
+asyncpg
+```
+
+The database infrastructure is located under:
+
+```text
+app/database/session.py
+app/database/base.py
+```
+
+### Redis
+
+Redis connectivity is implemented using the asynchronous Redis client:
+
+```text
+app/database/redis.py
+```
+
+Redis will later support caching and background-related infrastructure.
+
+### Exception Handling
+
+Centralized exception handling is implemented in:
+
+```text
+app/core/exceptions.py
+```
+
+Application errors are converted into consistent API responses without exposing internal implementation details.
+
+### Database Migrations
+
+Alembic is configured under:
+
+```text
+alembic/
+```
+
+Migrations can be managed using:
+
+```bash
+poetry run alembic upgrade head
+```
+
+---
+
+## ❤️ Health Check
+
+The backend exposes:
+
+```http
+GET /health
+```
+
+The endpoint checks the availability of:
+
+- PostgreSQL
+- Redis
+
+Example healthy response:
+
+```json
+{
+  "status": "healthy",
+  "database": "healthy",
+  "cache": "healthy"
+}
+```
+
+If a dependency becomes unavailable, the endpoint reports a degraded state instead of exposing an unhandled server exception.
+
+---
+
+## 📁 Project Structure
 
 ```text
 smart-saver-bot/
+│
 ├── app/
-│   ├── api/            # HTTP-facing layer (future)
-│   ├── bot/             # Bale bot entry point (future)
-│   ├── core/            # Configuration and cross-cutting concerns
-│   │   └── config.py
-│   ├── models/          # ORM entities (future)
-│   ├── schemas/         # Data-shape / validation definitions (future)
-│   ├── services/        # Business logic (future)
-│   ├── repositories/    # Data-access abstractions (future)
-│   ├── optimizers/       # Basket optimization algorithm (future)
-│   ├── scrapers/          # OKALA data provider adapter (future)
-│   ├── database/        # PostgreSQL / Redis wiring (future)
-│   ├── utils/           # Shared helpers
-│   └── main.py           # Application entry point (Phase 1 smoke target)
-├── tests/
-│   └── test_smoke.py
-├── scripts/
+│   ├── api/
+│   │   ├── health.py
+│   │   └── router.py
+│   │
+│   ├── bot/
+│   │
+│   ├── core/
+│   │   ├── config.py
+│   │   └── exceptions.py
+│   │
+│   ├── database/
+│   │   ├── base.py
+│   │   ├── redis.py
+│   │   └── session.py
+│   │
+│   ├── models/
+│   ├── optimizers/
+│   ├── repositories/
+│   ├── schemas/
+│   │   └── health.py
+│   ├── scrapers/
+│   ├── services/
+│   ├── utils/
+│   └── main.py
+│
+├── alembic/
+│   ├── versions/
+│   ├── env.py
+│   └── script.py.mako
+│
 ├── docs/
 │   └── architecture-decisions.md
-└── .github/workflows/ci.yml
+│
+├── scripts/
+│
+├── tests/
+│   ├── unit/
+│   └── integration/
+│
+├── .github/
+│   └── workflows/
+│       └── ci.yml
+│
+├── .env.example
+├── .gitignore
+├── alembic.ini
+├── docker-compose.yml
+├── pyproject.toml
+├── poetry.lock
+├── CONTRIBUTING.md
+├── SECURITY.md
+├── CHANGELOG.md
+└── README.md
 ```
 
-## Requirements
+---
+
+## ⚙️ Requirements
+
+Recommended development environment:
 
 - Python 3.12+
-- [Poetry](https://python-poetry.org/) 1.8+
+- Poetry 1.8+
+- PostgreSQL 16
+- Redis 7
 - Git
+- Docker / Docker Compose
 
-## Installation
+---
+
+## 🚀 Installation
+
+Clone the repository:
 
 ```bash
-git clone https://github.com/AmirHosseinRezaaie/smart-saver-bot.git
+git clone <repository-url>
 cd smart-saver-bot
+```
+
+Install dependencies:
+
+```bash
 poetry install
+```
+
+Create the environment configuration:
+
+```bash
 cp .env.example .env
 ```
 
-Edit `.env` and fill in real values as later phases require them (Phase 1 does not require
-any of them to be set).
+Then configure the required environment variables in `.env`.
 
-## Environment Variables
+> Never commit `.env` or real credentials to Git.
 
-See [`.env.example`](.env.example) for the full list. None of these are read with a
-hardcoded fallback value, and none are required for Phase 1's smoke test to pass:
+---
 
-| Variable          | Used by                          |
-| ----------------- | --------------------------------- |
-| `BALE_BOT_TOKEN`  | Bot layer (Phase 2+)              |
-| `DATABASE_URL`    | Database layer (Phase 2+)         |
-| `REDIS_URL`       | Cache / queue layers (Phase 2+)   |
-| `ENVIRONMENT`     | `app/core/config.py` (Phase 1)    |
+## 🐳 Local Infrastructure
 
-## Development
-
-Run the entry point directly:
+PostgreSQL and Redis can be started using Docker Compose:
 
 ```bash
-poetry run python -m app.main
+docker compose up -d
 ```
 
-## Testing
+This provides the local infrastructure required by the backend and integration tests.
+
+---
+
+## 🗄️ Database
+
+Apply migrations:
+
+```bash
+poetry run alembic upgrade head
+```
+
+Check migration status:
+
+```bash
+poetry run alembic current
+```
+
+View migration history:
+
+```bash
+poetry run alembic history
+```
+
+Create a migration:
+
+```bash
+poetry run alembic revision -m "add product table"
+```
+
+---
+
+## ▶️ Run the Application
+
+Start the FastAPI development server:
+
+```bash
+poetry run uvicorn app.main:app --reload
+```
+
+The application will be available at:
+
+```text
+http://localhost:8000
+```
+
+Interactive API documentation:
+
+```text
+http://localhost:8000/docs
+```
+
+OpenAPI schema:
+
+```text
+http://localhost:8000/openapi.json
+```
+
+Health check:
+
+```text
+http://localhost:8000/health
+```
+
+---
+
+## 🧪 Testing
+
+Run the complete test suite:
 
 ```bash
 poetry run pytest
 ```
 
-## Linting
+Run unit tests:
 
 ```bash
-poetry run ruff check .
+poetry run pytest tests/unit
 ```
 
-## Formatting
+Run integration tests:
 
 ```bash
-poetry run black .
+poetry run pytest tests/integration
 ```
 
-## Type Checking
+Integration tests require PostgreSQL and Redis to be available.
 
-```bash
-poetry run mypy app/
+The test suite currently covers:
+
+- Configuration loading and validation
+- Production debug restrictions
+- Secret/configuration safety
+- Centralized exception handling
+- PostgreSQL connectivity
+- Redis connectivity
+- Health endpoint behavior
+
+---
+
+## 🔐 Security
+
+Security is treated as a core project requirement.
+
+### Secrets
+
+Secrets must be provided through environment variables.
+
+Never commit:
+
+```text
+.env
 ```
 
-## Pre-commit
+or real:
 
-```bash
-poetry run pre-commit install
-poetry run pre-commit run --all-files
+- Bale tokens
+- Database credentials
+- Redis credentials
+- API keys
+- Passwords
+
+Only placeholder values belong in:
+
+```text
+.env.example
 ```
 
-## CI
+### Error Handling
 
-`.github/workflows/ci.yml` runs Ruff, Black (check mode), MyPy, and Pytest on every push
-and pull request against `main` or `develop`. It has no dependency on any live external
-service — everything it checks runs against the repository alone.
+Internal exceptions and sensitive implementation details must never be exposed directly to API clients.
 
-## Git Workflow
+### Production
 
-| Branch          | Purpose                                                              |
-| ---------------- | --------------------------------------------------------------------- |
-| `main`           | Stable, deployable code. Updated only via reviewed Pull Request.      |
-| `develop`        | Integration branch for completed work; base for every feature branch.|
-| `feature/*`      | One feature or phase (e.g. `feature/project-bootstrap`).              |
-| `fix/*`          | Non-critical bug fixes against `develop`.                            |
-| `hotfix/*`       | Urgent fixes against `main`/production.                              |
+Debug mode must be disabled in production.
 
-Commits follow [Conventional Commits](https://www.conventionalcommits.org/).
+---
 
-## Roadmap
+## 🌿 Git Workflow
 
-Phase 1 is one of 15 planned phases (Phase 0 – Phase 14). Immediately next:
+The project follows a structured branching strategy:
 
-- **Phase 2 — Backend Core**: FastAPI application skeleton, health-check endpoint, async
-  PostgreSQL connection via SQLAlchemy, Redis connection for caching.
+```text
+main
+  │
+  └── develop
+        │
+        ├── feature/backend-core
+        ├── feature/product-search
+        ├── feature/basket-optimizer
+        └── ...
+```
 
-Later phases add product search, basket optimization, the OKALA data provider, the Bale
-bot itself, background jobs, security hardening, deployment, and monitoring — in that
-order, per the project's phased plan.
+### Branches
 
-## License
+| Branch | Purpose |
+|---|---|
+| `main` | Stable production-ready code |
+| `develop` | Integration branch |
+| `feature/*` | Feature or phase development |
+| `fix/*` | Non-critical bug fixes |
+| `hotfix/*` | Urgent production fixes |
 
-See [`LICENSE`](LICENSE) — not yet finalized (project document does not specify one).
+### Commit Convention
+
+The project follows Conventional Commits.
+
+Examples:
+
+```text
+feat: add async database connection
+fix: handle unavailable products
+test: add basket optimizer tests
+docs: update project documentation
+chore: configure github actions ci
+refactor: extract economic score calculator
+```
+
+---
+
+## 🗺️ Roadmap
+
+The project is divided into independent development phases.
+
+| Phase | Description | Status |
+|---|---|---|
+| Phase 0 | Analysis & Design | ✅ Completed |
+| Phase 1 | Repository & Base Architecture | ✅ Completed |
+| Phase 2 | Backend Core | ✅ Completed |
+| Phase 3 | OKALA Data Source Integration | 🔜 Next |
+| Phase 4 | Product Processing & Search | Planned |
+| Phase 5 | Bale Bot & User Interaction | Planned |
+| Phase 6 | Basket Optimization | Planned |
+| Phase 7 | Product Price Comparison | Planned |
+| Phase 8 | Database, Cache & Background Jobs | Planned |
+| Phase 9 | Recommendation Engine | Planned |
+| Phase 10 | Comprehensive Testing | Planned |
+| Phase 11 | Security Hardening | Planned |
+| Phase 12 | Docker & CI/CD | Planned |
+| Phase 13 | Monitoring & Beta | Planned |
+| Phase 14 | Production Release | Planned |
+
+---
+
+## 🔮 Planned Core Capabilities
+
+### 1. Economic Basket
+
+Build an economically optimized basket within a user-defined budget range.
+
+```text
+Minimum Budget
+      +
+Maximum Budget
+      ↓
+Product Candidates
+      ↓
+Economic Score
+      ↓
+Basket Optimization
+      ↓
+Optimized Basket
+```
+
+### 2. Mandatory Products
+
+Allow users to specify products that must be included in the basket before optimizing the remaining budget.
+
+### 3. Best Price Search
+
+Find economical options for a requested product across available data.
+
+### 4. Product Comparison
+
+Compare multiple products based on:
+
+- Original price
+- Final price
+- Discount percentage
+- Saving amount
+- Store
+- Availability
+- Shipping cost
+
+### 5. Smart Recommendations
+
+A future rule-based recommendation engine will suggest shopping baskets based on user needs and budget.
+
+---
+
+## 🧠 Economic Score
+
+The project does not consider the highest discount percentage as the only definition of an economical product.
+
+The planned scoring model considers multiple factors, including:
+
+- Discount percentage
+- Discount amount
+- Effective price
+- Stock availability
+- Shipping cost
+
+This allows the optimizer to evaluate the actual economic value of a product rather than relying on a single metric.
+
+---
+
+## 📚 Documentation
+
+Detailed technical documentation is maintained separately from the README.
+
+Important documentation includes:
+
+```text
+docs/
+├── architecture-decisions.md
+└── ...
+```
+
+The complete project specification and development roadmap define the architecture, data model, optimization strategy, Git workflow, security requirements and development phases.
+
+---
+
+## 🤝 Contributing
+
+Development guidelines are available in:
+
+```text
+CONTRIBUTING.md
+```
+
+Before submitting changes:
+
+1. Create a feature branch.
+2. Follow the Conventional Commit format.
+3. Add or update tests where necessary.
+4. Run the test suite.
+5. Ensure no secrets are committed.
+6. Open a Pull Request against `develop`.
+
+---
+
+## 📄 License
+
+See:
+
+```text
+LICENSE
+```
+
+for licensing information.
+
+---
+
+## 📌 Project Status
+
+**Current milestone: Phase 2 — Backend Core**
+
+The backend foundation is now ready for the next development milestone:
+
+**Phase 3 — OKALA Data Source Investigation & Integration**
