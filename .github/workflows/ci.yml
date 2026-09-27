@@ -10,6 +10,41 @@ jobs:
   quality:
     name: Lint, format, type-check, test
     runs-on: ubuntu-latest
+
+    # Temporary PostgreSQL and Redis instances for this job only — not
+    # a persistent or shared service, and never seeded with real data.
+    # Credentials below are throwaway, test-local values; no real
+    # secret (e.g. BALE_BOT_TOKEN) is required or set here.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ssb
+          POSTGRES_PASSWORD: ********
+          POSTGRES_DB: shopping_bot_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ssb"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      ENVIRONMENT: testing
+      DATABASE_URL: postgresql+asyncpg://ssb:********@localhost:5432/shopping_bot_test
+      REDIS_URL: redis://localhost:6379/15
+
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -34,5 +69,8 @@ jobs:
       - name: MyPy (type check)
         run: poetry run mypy app/
 
-      - name: Pytest
+      - name: Alembic (migrations apply cleanly)
+        run: poetry run alembic upgrade head
+
+      - name: Pytest (unit + integration)
         run: poetry run pytest

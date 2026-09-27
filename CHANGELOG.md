@@ -8,6 +8,18 @@ follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- OKALA data source investigation report (`docs/okala-research.md`), distinguishing
+  verified findings from open questions per the project document's Phase 3 requirement.
+- `OkalaProviderInterface` (`app/scrapers/interfaces.py`) and a concrete
+  `OkalaProvider` adapter built on the generic `schema.org/Product` structured-data
+  contract, with bounded timeout/retry (`app/scrapers/http_client.py`), raw-response
+  snapshotting for debugging (`app/scrapers/snapshot.py`), and raw/internal catalog
+  schemas (`app/schemas/okala.py`, `app/schemas/catalog.py`).
+- OKALA provider configuration in `Settings` (base URL, timeout, retry, snapshotting)
+  and matching entries in `.env.example`.
+- `Provider*` exception hierarchy in `app/core/exceptions.py` for provider failures.
+- `httpx` promoted to a runtime dependency (was test-only) for the provider adapter.
+
 - Initial repository structure (`app/`, `tests/`, `scripts/`, `docs/`,
   `.github/workflows/`) reflecting the layered / modular-monolith architecture.
 - Environment-based configuration (`app/core/config.py`).
