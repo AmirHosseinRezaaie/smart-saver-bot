@@ -1,6 +1,8 @@
-"""External data provider / scraper layer (future).
+"""External data provider / scraper layer.
 
-Reserved for the OKALA data provider adapter. The project document
-requires evaluating an official API/feed before any scraping is
-implemented, so no network access happens here in Phase 1.
+The only package in the project allowed to know how OKALA data is
+actually obtained (`OkalaProviderInterface` in `interfaces.py`, backed by
+the `OkalaProvider` adapter in `okala_provider.py`). See
+`docs/okala-research.md` for the investigation behind the chosen access
+method, and `app/core/config.py` for its configuration.
 """

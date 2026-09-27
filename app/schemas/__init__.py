@@ -1,5 +1,7 @@
-"""Data transfer / validation schemas (future).
+"""Data transfer / validation schemas.
 
-Reserved for request, response, and internal data-shape definitions.
-Not implemented in Phase 1.
+`okala.py` holds raw, provider-neutral shapes returned by the Data
+Provider layer; `catalog.py` holds the internal Product/Price/Discount
+models (project document, chapter 7) that the rest of the application
+depends on instead.
 """
