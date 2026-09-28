@@ -77,6 +77,20 @@ class Settings(BaseSettings):
     okala_snapshot_enabled: bool = False
     okala_snapshot_dir: str = "raw_snapshots"
 
+    # --- Product search (Phase 4) -----------------------------------------
+    # Minimum pg_trgm similarity (0-1) a candidate must score to be
+    # returned by fuzzy search. Configurable rather than hardcoded in
+    # `app.repositories.product_repository` per the project document's
+    # explicit "آستانه شباهت قابل‌تنظیم" (configurable similarity threshold)
+    # requirement (Phase 4, task 43).
+    search_similarity_threshold: float = Field(default=0.3, ge=0.0, le=1.0)
+    # Below this normalized-query length, fuzzy search is skipped entirely
+    # rather than run with a threshold that can't discriminate a 1-character
+    # query — the Phase 4 risk table's own mitigation ("تعیین حداقل طول
+    # عبارت برای فعال‌سازی تطبیق فازی") for low-quality short-query matches.
+    search_min_query_length: int = Field(default=2, ge=1)
+    search_max_results: int = Field(default=20, ge=1, le=100)
+
     @property
     def is_production(self) -> bool:
         return self.environment == "production"

@@ -1,300 +1,165 @@
-# Smart Saver Bot
+## Phase 4 — Product Processing, Normalization & Search
 
-An intelligent, economy-focused shopping bot for the [Bale](https://www.bale.ai/) messenger.
-Smart Saver Bot uses product and price data from the OKALA store to — in future phases —
-help users assemble an economically optimized shopping basket within a given budget.
+Phase 4 introduces the product search layer of Smart Saver Bot.
 
-## Current Status
+The main objective of this phase is to make product search more tolerant of common Persian text variations and to provide a reliable local catalog search layer backed by PostgreSQL.
 
-**Phase 3 — OKALA Data Source Investigation & Provider**
+### Implemented Features
 
-Phase 2's backend core (FastAPI app, async PostgreSQL/Redis, centralized exceptions,
-Alembic) is unchanged. This phase adds `OkalaProviderInterface` (`app/scrapers`) — a
-stable, provider-agnostic abstraction for categories/products/product-detail — and a
-concrete adapter built against the generic `schema.org/Product` structured-data
-contract, since no official OKALA API or feed could be confirmed and the live site
-could not be fetched to verify its own markup. See
-[docs/okala-research.md](docs/okala-research.md) for the full investigation (clearly
-labeled Verified/Observed/Unknown) and its explicit follow-ups, and
-[docs/architecture-decisions.md](docs/architecture-decisions.md) for earlier phases.
-No business logic beyond this data-provider boundary (search, basket optimization, the
-Bale bot itself, etc.) is implemented yet — see the [Roadmap](#roadmap) below.
+- Persian text normalization
+- Persian/Arabic character normalization
+- Persian, Arabic, and ASCII digit normalization
+- Whitespace normalization
+- Invisible/control character handling
+- Basic tokenization
+- Normalized product names
+- Exact product search
+- Fuzzy product search
+- PostgreSQL `pg_trgm` integration
+- Trigram-based product similarity
+- Configurable similarity threshold
+- Configurable minimum query length
+- Configurable maximum search results
+- Local product catalog synchronization
+- Product upsert based on external identifiers
+- Price snapshot storage
+- Discount calculation and storage
+- Partial failure handling during catalog synchronization
 
-## Architecture
+### Search Architecture
 
-Smart Saver Bot is built as a **Modular Monolith** with a **layered / service-oriented**
-architecture. A single deployable application is organized into clearly bounded modules
-(one package per concern, with an explicit interface), so that a module can be split out
-into its own service later without a rewrite — while avoiding the operational overhead of
-microservices at the current scale.
+Product search follows a two-stage strategy:
 
 ```text
-User (Bale messenger)                          Future: public API (e.g. mobile app)
-      ↓                                                     ↓
-  Bale Bot (Phase 5+)                                 app/api  (FastAPI routers)
-      ↓                                                     ↓
-                    Application / Service Layer (Phase 3+)
-      (User Mgmt, Search, Product, Basket Optimization,
-       Recommendation, Price Analysis, Notification)
+User Query
+    ↓
+Persian Text Normalizer
+    ↓
+Exact Search
+    ↓
+If no suitable result
+    ↓
+Fuzzy Search
+    ↓
+PostgreSQL + pg_trgm
+    ↓
+Ranked Product Results
+```
+
+This approach allows the system to return relevant products even when the user's input does not exactly match the stored product name.
+
+### Persian Text Normalization
+
+The normalizer converts common Persian and Arabic writing variations into a consistent representation.
+
+Examples include:
+
+- Arabic `ي` → Persian `ی`
+- Arabic `ك` → Persian `ک`
+- Persian/Arabic digits → normalized numeric representation
+- repeated whitespace → single whitespace
+- invisible characters → removed
+- unnecessary punctuation → normalized/removed
+
+The normalization process is designed to be deterministic and idempotent.
+
+### Fuzzy Search
+
+PostgreSQL `pg_trgm` is used to support fuzzy product matching without introducing a separate search engine.
+
+The search layer supports configurable parameters such as:
+
+```env
+SEARCH_SIMILARITY_THRESHOLD=0.3
+SEARCH_MIN_QUERY_LENGTH=2
+SEARCH_MAX_RESULTS=20
+```
+
+The system first attempts an exact match against `normalized_name`.
+
+If no suitable exact result is found and the query satisfies the fuzzy-search requirements, PostgreSQL trigram similarity is used to identify relevant products.
+
+### Catalog Synchronization
+
+Phase 4 also introduces the local catalog synchronization layer.
+
+The synchronization flow is:
+
+```text
+OKALA Provider
       ↓
-  Repositories  ⇄  OKALA Data Provider (Phase 3+)  ⇄  Scheduler / Background Jobs
+Catalog Sync Service
       ↓
-  app/database  →  PostgreSQL (SQLAlchemy Async)  +  Redis (async client)
+Normalize Product Data
+      ↓
+Product Upsert
+      ↓
+Price Snapshot
+      ↓
+Discount Data
+      ↓
+PostgreSQL Catalog
 ```
 
-Business logic in the Service layer never talks to Bale or OKALA directly; both are
-reached only through adapters (the Bot layer and the Data Provider layer, respectively),
-so either can be swapped or extended without touching core logic. The Backend Core built
-in this phase (`app/main.py`, `app/core`, `app/database`, `app/api`) is deliberately
-independent of that future bot/business logic, so a general-purpose API can be added later
-without changing it — see `docs/architecture-decisions.md`, ADR-006.
+Products are identified using their external provider identifiers so repeated synchronization does not create duplicate product records.
 
-### Request flow
+Price information is stored as snapshots to preserve price history for future features.
 
-```text
-Client
-   │
-   ▼
-FastAPI (app/main.py)
-   │
-   ├── API / Routers (app/api)         → GET /health
-   │
-   ├── Centralized Exception Handling (app/core/exceptions.py)
-   │
-   └── Core Configuration (app/core/config.py, Pydantic Settings)
-          │
-          ├── PostgreSQL (app/database/session.py)
-          │      └── SQLAlchemy Async engine + AsyncSession
-          │
-          └── Redis (app/database/redis.py)
-                 └── redis.asyncio client
-```
+### Database Search
 
-## Project Structure
+The catalog search layer uses PostgreSQL indexes to support both exact and fuzzy matching.
 
-```text
-smart-saver-bot/
-├── app/
-│   ├── api/              # HTTP-facing layer
-│   │   ├── health.py      # GET /health
-│   │   └── router.py       # top-level router, included by main.py
-│   ├── bot/                # Bale bot entry point (future)
-│   ├── core/
-│   │   ├── config.py        # Pydantic Settings — single config source of truth
-│   │   └── exceptions.py    # exception hierarchy + FastAPI exception handlers
-│   ├── database/
-│   │   ├── base.py           # shared SQLAlchemy declarative Base
-│   │   ├── session.py        # async engine, AsyncSession, check_database()
-│   │   └── redis.py           # async Redis client, check_redis()
-│   ├── models/              # ORM entities (future)
-│   ├── schemas/
-│   │   └── health.py         # /health response schema
-│   ├── services/             # business logic (future)
-│   ├── repositories/         # data-access abstractions (future)
-│   ├── optimizers/            # basket optimization algorithm (future)
-│   ├── scrapers/               # OKALA data provider adapter (future)
-│   ├── utils/                 # shared helpers
-│   └── main.py                 # FastAPI application factory + entry point
-├── alembic/                     # database migrations (async)
-│   ├── env.py
-│   └── versions/
-├── alembic.ini
-├── docker-compose.yml            # local PostgreSQL + Redis for dev/test
-├── tests/
-│   ├── unit/                      # no external dependency
-│   └── integration/                # real PostgreSQL + Redis required
-├── scripts/
-├── docs/
-│   └── architecture-decisions.md
-└── .github/workflows/ci.yml
-```
+The fuzzy search infrastructure uses:
 
-## Requirements
+- PostgreSQL `pg_trgm`
+- Trigram similarity
+- GIN indexing for normalized product names
 
-- Python 3.12+
-- [Poetry](https://python-poetry.org/) 1.8+
-- Git
-- PostgreSQL 16 and Redis 7 (for running the app or the integration tests — via
-  `docker-compose.yml`, or any local install)
+This keeps the MVP architecture relatively simple while providing a practical fuzzy-search capability.
 
-## Installation
+### Testing
 
-```bash
-git clone <repository-url>
-cd smart-saver-bot
-poetry install
-cp .env.example .env
-```
+Phase 4 adds tests for the Persian normalization layer and search functionality.
 
-Edit `.env` and fill in real values. `DATABASE_URL` and `REDIS_URL` are required for the
-app to report a healthy `/health`; `BALE_BOT_TOKEN` is not needed until Phase 5.
+The test coverage includes cases such as:
 
-## Environment Variables
+- Arabic/Persian character differences
+- Persian and Arabic digits
+- whitespace normalization
+- invisible characters
+- punctuation
+- empty input
+- tokenization
+- normalization idempotency
+- fuzzy product matching
 
-See [`.env.example`](.env.example) for the full list and default values.
+Integration testing against PostgreSQL is required for validating the real `pg_trgm` behavior.
 
-| Variable                 | Used by                                | Required |
-| ------------------------- | --------------------------------------- | -------- |
-| `ENVIRONMENT`              | `app/core/config.py`                     | No (defaults to `development`) |
-| `APP_NAME` / `APP_VERSION` | OpenAPI metadata                          | No |
-| `DEBUG`                    | Error verbosity; **must be `false` in production** (enforced at startup) | No |
-| `BALE_BOT_TOKEN`           | Bot layer (Phase 5+)                      | No |
-| `DATABASE_URL`             | `app/database/session.py`                | For `/health` to report the database healthy |
-| `DATABASE_POOL_SIZE` / `DATABASE_MAX_OVERFLOW` / `DATABASE_POOL_TIMEOUT` | connection pool tuning | No |
-| `REDIS_URL`                | `app/database/redis.py`                  | For `/health` to report the cache healthy |
-| `REDIS_TIMEOUT`            | Redis operation timeout                   | No |
+### Current Project Status
 
-None of these are ever hardcoded — see `docs/architecture-decisions.md`, ADR-006, and
-[Security](#security) below.
+**Current Phase:** Phase 4 — Product Processing, Normalization & Search
 
-## Running Locally
+**Completed foundation:**
 
-Start PostgreSQL and Redis (either is fine):
+- Phase 0 — Analysis & Design
+- Phase 1 — Repository & Architecture
+- Phase 2 — Backend Core
+- Phase 3 — OKALA Data Provider
+- Phase 4 — Product Processing, Normalization & Search
 
-```bash
-docker compose up -d          # brings up postgres:16 + redis:7, and creates
-                               # both the dev (shopping_bot) and test
-                               # (shopping_bot_test) databases
-```
+The next major development stage is the basket optimization engine.
 
-Apply migrations, then run the app:
+### Next Phase
 
-```bash
-poetry run alembic upgrade head
-poetry run uvicorn app.main:app --reload
-```
+**Phase 5 — Basket Optimization Engine**
 
-## Swagger / OpenAPI
+The next phase will build on the search and catalog infrastructure to implement:
 
-With the app running: interactive docs at <http://localhost:8000/docs>, raw schema at
-<http://localhost:8000/openapi.json>.
-
-## Health Endpoint
-
-```bash
-curl http://localhost:8000/health
-```
-
-Returns HTTP 200 with `{"status": "healthy", "database": "healthy", "cache": "healthy"}`
-when both dependencies are reachable, or HTTP 503 with `"status": "degraded"` and the
-specific component(s) marked `"unhealthy"` otherwise. It never raises an unhandled
-exception, even if PostgreSQL/Redis are completely unreachable.
-
-## PostgreSQL
-
-Access is exclusively through SQLAlchemy's async engine (`app/database/session.py`) —
-no raw `psycopg2`/sync calls, no ad-hoc connections elsewhere in the codebase. The engine
-and session factory are built lazily (first use, not at import time) and are configurable
-via `DATABASE_POOL_SIZE`, `DATABASE_MAX_OVERFLOW`, `DATABASE_POOL_TIMEOUT`.
-
-## Redis
-
-Access is exclusively through `redis.asyncio` (`app/database/redis.py`), built lazily the
-same way, with `REDIS_TIMEOUT` bounding both connect and socket operations.
-
-## Alembic / Database Migrations
-
-```bash
-poetry run alembic upgrade head        # apply all migrations
-poetry run alembic downgrade base      # roll back to empty
-poetry run alembic revision -m "add product table"   # new manual migration
-poetry run alembic revision --autogenerate -m "..."   # once models exist (Phase 3+)
-poetry run alembic current             # show current revision
-poetry run alembic history             # show migration history
-```
-
-`alembic/env.py` reads `DATABASE_URL` from the same `app.core.config.Settings` the
-application uses — there is no separate, second connection string anywhere in
-`alembic.ini`.
-
-## Testing
-
-```bash
-poetry run pytest                 # everything (unit + integration)
-poetry run pytest tests/unit      # unit only — no external services needed
-poetry run pytest -m integration  # integration only — needs PostgreSQL + Redis running
-```
-
-## Integration Testing
-
-Integration tests (`tests/integration/`) run against a **real** PostgreSQL and Redis —
-nothing is mocked. They use a dedicated test database (`shopping_bot_test`) and a
-dedicated Redis logical database (`/15`) so they never touch development data. Start them
-with `docker compose up -d` (see above) before running `pytest`.
-
-## Docker / Test Services
-
-`docker-compose.yml` provides local PostgreSQL and Redis for development and testing. It
-is **not** a production deployment manifest (see `docs/architecture-decisions.md`,
-ADR-011) — production deployment is Phase 12's concern.
-
-## Linting
-
-```bash
-poetry run ruff check .
-```
-
-## Formatting
-
-```bash
-poetry run black .
-```
-
-## Type Checking
-
-```bash
-poetry run mypy app/
-```
-
-## Pre-commit
-
-```bash
-poetry run pre-commit install
-poetry run pre-commit run --all-files
-```
-
-## CI
-
-`.github/workflows/ci.yml` runs Ruff, Black (check mode), MyPy, `alembic upgrade head`,
-and the full Pytest suite (unit + integration) on every push and pull request against
-`main` or `develop`, using temporary `postgres:16` and `redis:7` GitHub Actions services.
-No real secret (e.g. `BALE_BOT_TOKEN`) is required or configured in CI.
-
-## Security
-
-- All secrets (`DATABASE_URL`, `REDIS_URL`, `BALE_BOT_TOKEN`) come exclusively from
-  environment variables — never hardcoded, never logged.
-- Database access uses SQLAlchemy's parameterized query APIs exclusively; no string
-  concatenation into SQL.
-- API error responses are structured and generic (`{"error": {"code": ..., "message":
-  ...}}`); internal tracebacks, credentials, and connection strings never reach the
-  client — see `app/core/exceptions.py`.
-- `DEBUG=true` is rejected at startup when `ENVIRONMENT=production`.
-- See `docs/architecture-decisions.md` for the full reasoning behind each of these.
-
-## Git Workflow
-
-| Branch          | Purpose                                                              |
-| ---------------- | --------------------------------------------------------------------- |
-| `main`           | Stable, deployable code. Updated only via reviewed Pull Request.      |
-| `develop`        | Integration branch for completed work; base for every feature branch.|
-| `feature/*`      | One feature or phase (e.g. `feature/backend-core`).                   |
-| `fix/*`          | Non-critical bug fixes against `develop`.                            |
-| `hotfix/*`       | Urgent fixes against `main`/production.                              |
-
-Commits follow [Conventional Commits](https://www.conventionalcommits.org/).
-
-## Roadmap
-
-Phase 3 is one of 15 planned phases (Phase 0 – Phase 14). Immediately next:
-
-- **Phase 4 — Product search**: Persian text normalization, fuzzy search, and the
-  initial catalog sync job that populates the database from `OkalaProviderInterface`.
-
-Later phases add basket optimization, the Bale bot itself, background
-jobs, security hardening, deployment, and monitoring — in that order, per the project's
-phased plan.
-
-## License
-
-See [`LICENSE`](LICENSE) — not yet finalized (project document does not specify one).
+- Economic Score
+- Effective Price
+- Basket optimization
+- Budget constraints
+- Mandatory products
+- Greedy optimization
+- Local search improvements
+- Economical basket generation
