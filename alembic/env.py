@@ -20,8 +20,13 @@ if config.config_file_name is not None:
 
 # `Base.metadata` is the shared root every ORM model attaches to (see
 # app/database/base.py); autogenerate discovers new models through it
-# automatically as later phases add them. There is nothing registered
-# on it yet in Phase 2 — see docs/architecture-decisions.md, ADR-009.
+# automatically as later phases add them. Phase 4 is the first phase with
+# real ORM models (see app/models/catalog.py) — importing app.models here
+# (for its side effect of populating Base.metadata) is what lets
+# `alembic revision --autogenerate` see them, even though this phase's own
+# migration is written by hand (see alembic/versions/).
+import app.models  # noqa: E402,F401
+
 target_metadata = Base.metadata
 
 # The connection string is never read from alembic.ini or hardcoded
