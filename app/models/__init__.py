@@ -1,5 +1,12 @@
-"""Persistence models (future).
+"""Persistence models.
 
-Reserved for ORM entities (e.g. User, Store, Product, Basket).
-Not implemented in Phase 1 — see docs/architecture-decisions.md.
+Every ORM model must be imported here so it registers on
+`app.database.base.Base.metadata` and Alembic's autogenerate can discover
+it (see `app/database/base.py`). `Product`/`Store`/`Category`/`Price`/
+`Discount` land in Phase 4 (see `app/models/catalog.py`); `User`, `Basket`,
+and the rest of chapter 7's entities remain reserved for later phases.
 """
+
+from app.models.catalog import Category, Discount, Price, Product, Store
+
+__all__ = ["Category", "Discount", "Price", "Product", "Store"]

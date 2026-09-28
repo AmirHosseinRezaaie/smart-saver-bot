@@ -43,3 +43,7 @@ node_modules/
 .coverage
 coverage.xml
 htmlcov/
+
+# OKALA raw response snapshots (Phase 3) — debugging aid only, never
+# committed: can be large and may echo upstream content verbatim.
+raw_snapshots/

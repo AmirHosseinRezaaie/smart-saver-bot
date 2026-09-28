@@ -1,6 +1,5 @@
-"""Repository layer (future).
+"""Repository layer.
 
-Reserved for data-access abstractions that sit between services and
-the database, keeping persistence details out of business logic.
-Not implemented in Phase 1.
+`product_repository` (Phase 4) is the first data-access module here: it
+keeps every PostgreSQL/`pg_trgm`-specific concern out of the Service layer.
 """
